@@ -1,0 +1,188 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+
+public class CPHInline
+{
+    private T TryGetArg<T>(string argName, T defaultValue)
+    {
+        if (CPH.TryGetArg(argName, out object raw))
+        {
+            try
+            {
+                if (typeof(T) == typeof(int) && raw is string s)
+                {
+                    // Handle hex like "0xFFFFFF"
+                    if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int hex = int.Parse(s.Substring(2), System.Globalization.NumberStyles.HexNumber);
+                        return (T)(object)hex;
+                    }
+                }
+                return (T)Convert.ChangeType(raw, typeof(T));
+            }
+            catch
+            {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
+
+    public bool Execute()
+    {
+        string vidPath      = TryGetArg<string>( "BlinkVidPath", @"" );
+        int taskLength      = TryGetArg<int>( "BlinkTaskLength", 10 ); // seconds
+        int chroma          = TryGetArg<int>( "BlinkChroma", 0x00FF00 );
+        int width           = TryGetArg<int>( "BlinkWidth", 640 );
+        int height          = TryGetArg<int>( "BlinkHeight", 360 );
+        int posX            = TryGetArg<int>( "BlinkPosX", 100 );
+        int posY            = TryGetArg<int>( "BlinkPosY", 100 );
+        int similarity      = TryGetArg<int>( "BlinkChromaSim", 400 );
+        int smoothness      = TryGetArg<int>( "BlinkChromaSmooth", 80 );
+        bool MonitorAudio   = TryGetArg<bool>( "BlinkAudioMonitor", false );
+
+        if (!File.Exists(vidPath))
+        {
+            CPH.LogError($"File not found: {vidPath}");
+            return false;
+        }
+
+        string sceneName = CPH.ObsGetCurrentScene();
+        var task = new ObsMediaTask(sceneName, vidPath, taskLength, chroma,
+                                    width, height, posX, posY,
+                                    similarity, smoothness, MonitorAudio, this);
+        task.Start();
+
+        return true;
+    }
+}
+
+public class ObsMediaTask
+{
+    private readonly string sceneName;
+    private readonly string vidPath;
+    private readonly int taskLength;
+    private readonly CPHInline Parent;
+    private readonly string sourceName;
+    private readonly int chromaKey;
+    private readonly int width;
+    private readonly int height;
+    private readonly int posX;
+    private readonly int posY;
+    private readonly int similarity;
+    private readonly int smoothness;
+    private readonly bool AudioMonitor;
+
+    private int sceneItemId;
+
+    public ObsMediaTask(string sceneName, string vidPath, int taskLength, int chromaKey,
+                        int width, int height, int posX, int posY,
+                        int similarity, int smoothness, bool monitorAudio, CPHInline parent)
+    {
+        this.sceneName    = sceneName;
+        this.vidPath      = vidPath.Replace("\\", "/");
+        this.taskLength   = taskLength;
+        this.sourceName   = "Task_" + Guid.NewGuid().ToString("N").Substring(0, 6);
+        this.chromaKey    = chromaKey;
+        this.width        = width;
+        this.height       = height;
+        this.posX         = posX;
+        this.posY         = posY;
+        this.similarity   = similarity;
+        this.smoothness   = smoothness;
+        this.AudioMonitor = monitorAudio;
+        this.Parent       = parent;
+
+        AddSource();
+        AddFilter();
+        if( AudioMonitor )
+            AddMonitor();
+        SetTransform();
+    }
+
+    public void Start()
+    {
+        Task.Run(async () =>
+        {
+            Parent.CPH.LogInfo($"Task started for {taskLength}s on source {sourceName}");
+            await Task.Delay(taskLength * 1000);
+            RemoveSource();
+            Parent.CPH.LogInfo($"Task finished, source {sourceName} removed.");
+        });
+    }
+
+    private void AddSource()
+    {
+        string createInputJson = $@"{{
+            ""sceneName"": ""{sceneName}"",
+            ""inputName"": ""{sourceName}"",
+            ""inputKind"": ""ffmpeg_source"",
+            ""inputSettings"": {{
+                ""local_file"": ""{vidPath}"",
+                ""is_local_file"": true,
+                ""looping"": true
+            }},
+            ""sceneItemEnabled"": true
+        }}";
+        string resp = Parent.CPH.ObsSendRaw("CreateInput", createInputJson);
+        var obj = JObject.Parse(resp);
+        var idToken = obj["sceneItemId"];
+        if (idToken != null)
+            sceneItemId = (int)idToken;
+        else
+            Parent.CPH.LogError("Failed to parse sceneItemId from CreateInput response.");
+    }
+
+    private void AddFilter()
+    {
+        Parent.CPH.ObsSendRaw("CreateSourceFilter", $@"{{
+            ""sourceName"": ""{sourceName}"",
+            ""filterName"": ""Chroma Key"",
+            ""filterKind"": ""chroma_key_filter""
+        }}");
+
+        Parent.CPH.ObsSendRaw("SetSourceFilterSettings", $@"{{
+            ""sourceName"": ""{sourceName}"",
+            ""filterName"": ""Chroma Key"",
+            ""filterSettings"": {{
+                ""key_color_type"": ""custom"",
+                ""key_color"": {chromaKey},
+                ""similarity"": {similarity},
+                ""smoothness"": {smoothness},
+                ""spill"": 0
+            }}
+        }}");
+    }
+
+    private void SetTransform()
+    {
+        if (sceneItemId == 0) return;
+
+        string transformJson = $@"{{
+            ""sceneName"": ""{sceneName}"",
+            ""sceneItemId"": {sceneItemId},
+            ""sceneItemTransform"": {{
+                ""positionX"": {posX},
+                ""positionY"": {posY},
+                ""width"": {width},
+                ""height"": {height}
+            }}
+        }}";
+        Parent.CPH.ObsSendRaw("SetSceneItemTransform", transformJson);
+    }
+
+    private void AddMonitor()
+    {
+        Parent.CPH.ObsSendRaw("SetInputAudioMonitorType", $@"{{
+            ""inputName"": ""{sourceName}"",
+            ""monitorType"": ""OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT""
+        }}");
+    }
+
+    private void RemoveSource()
+    {
+        Parent.CPH.ObsSendRaw("RemoveInput", $@"{{ ""inputName"": ""{sourceName}"" }}");
+    }
+}

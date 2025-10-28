@@ -160,17 +160,56 @@ public class ObsMediaTask
     {
         if (sceneItemId == 0) return;
 
+        var (nativeW, nativeH) = GetSceneItemBox();
+        if (nativeW == 0 || nativeH == 0)
+        {
+            Parent.CPH.LogError("Could not get native size, skipping scale.");
+            return;
+        }
+
+        double scaleX = (double)width / nativeW;
+        double scaleY = (double)height / nativeH;
+
         string transformJson = $@"{{
             ""sceneName"": ""{sceneName}"",
             ""sceneItemId"": {sceneItemId},
             ""sceneItemTransform"": {{
                 ""positionX"": {posX},
                 ""positionY"": {posY},
-                ""width"": {width},
-                ""height"": {height}
+                ""alignment"": 1,
+                ""scaleX"": {scaleX.ToString(System.Globalization.CultureInfo.InvariantCulture)},
+                ""scaleY"": {scaleY.ToString(System.Globalization.CultureInfo.InvariantCulture)}
             }}
         }}";
         Parent.CPH.ObsSendRaw("SetSceneItemTransform", transformJson);
+    }
+
+    private (int width, int height) GetSceneItemBox()
+    {
+        string req = $@"{{
+            ""sceneName"": ""{sceneName}"",
+            ""sceneItemId"": {sceneItemId}
+        }}";
+
+        string resp = Parent.CPH.ObsSendRaw("GetSceneItemTransform", req);
+        var obj = JObject.Parse(resp);
+        // Depending on how Streamer.bot returns it, you may need to adjust the path.
+        // Often it's just responseData directly.
+        var transform = obj["sceneItemTransform"];
+        if (transform == null)
+        {
+            transform = obj["sceneItemTransform"];
+        }
+
+        if (transform != null)
+        {
+            int w = (int)transform["width"];
+            int h = (int)transform["height"];
+            return (w, h);
+        }
+
+        Parent.CPH.LogError($"Failed to parse GetSceneItemTransform response: {resp}");
+        return (0, 0);
     }
 
     private void AddMonitor()

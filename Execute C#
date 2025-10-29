@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 
@@ -160,11 +161,12 @@ public class ObsMediaTask
     {
         if (sceneItemId == 0) return;
 
-        var (nativeW, nativeH) = GetSceneItemBox();
+        var (nativeW, nativeH) = GetValidBox(sceneName, sceneItemId);
         if (nativeW == 0 || nativeH == 0)
         {
-            Parent.CPH.LogError("Could not get native size, skipping scale.");
-            return;
+            nativeW = 1;
+            nativeH = 1;
+            Parent.CPH.LogError("Could not get native size.");
         }
 
         double scaleX = (double)width / nativeW;
@@ -184,32 +186,37 @@ public class ObsMediaTask
         Parent.CPH.ObsSendRaw("SetSceneItemTransform", transformJson);
     }
 
-    private (int width, int height) GetSceneItemBox()
+    private (double w, double h) GetValidBox(string sceneName, int sceneItemId)
     {
-        string req = $@"{{
-            ""sceneName"": ""{sceneName}"",
-            ""sceneItemId"": {sceneItemId}
-        }}";
-
-        string resp = Parent.CPH.ObsSendRaw("GetSceneItemTransform", req);
-        var obj = JObject.Parse(resp);
-        // Depending on how Streamer.bot returns it, you may need to adjust the path.
-        // Often it's just responseData directly.
-        var transform = obj["sceneItemTransform"];
-        if (transform == null)
+        for (int attempt = 0; attempt < 5; attempt++)
         {
-            transform = obj["sceneItemTransform"];
+            string req = $@"{{ ""sceneName"": ""{sceneName}"", ""sceneItemId"": {sceneItemId} }}";
+            string resp = Parent.CPH.ObsSendRaw("GetSceneItemTransform", req);
+            var obj = JObject.Parse(resp);
+            var tr = obj["sceneItemTransform"] ?? obj["responseData"]?["sceneItemTransform"];
+            if (tr != null)
+            {
+                double w = ToDouble(tr["width"]);
+                double h = ToDouble(tr["height"]);
+                if (w > 0 && h > 0) return (w, h);
+            }
+            Thread.Sleep(50); // small wait before retry
         }
+        return (0, 0); // fallback
+    }
 
-        if (transform != null)
-        {
-            int w = (int)transform["width"];
-            int h = (int)transform["height"];
-            return (w, h);
-        }
+    private static double ToDouble(JToken token)
+    {
+        if (token == null) return 0;
+        if (token.Type == JTokenType.Float || token.Type == JTokenType.Integer) return (double)token;
 
-        Parent.CPH.LogError($"Failed to parse GetSceneItemTransform response: {resp}");
-        return (0, 0);
+        double.TryParse(
+            token.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out double v
+        );
+        return v;
     }
 
     private void AddMonitor()

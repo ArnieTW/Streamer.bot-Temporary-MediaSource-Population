@@ -4,6 +4,36 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 
+public enum SourceType
+{
+    Media,
+    Image,
+    TextFile,
+    Text
+}
+
+public class FontSettings
+{
+    public string Family { get; set; }
+    public int Size { get; set; }
+    public int Color { get; set; }
+    public string Style { get; set; }
+    public int BgColor { get; set; }
+    public int BgOpacity { get; set; }
+    public bool EnableBg { get; set; }
+
+    public FontSettings(string family, int size, int color, string style, int bgColor, int bgOpacity, bool enableBg)
+    {
+        Family = family;
+        Size = size;
+        Color = color;
+        Style = style;
+        BgColor = bgColor;
+        BgOpacity = bgOpacity;
+        EnableBg = enableBg;
+    }
+}
+
 public class CPHInline
 {
     private T TryGetArg<T>(string argName, T defaultValue)
@@ -43,6 +73,18 @@ public class CPHInline
         int similarity      = TryGetArg<int>( "BlinkChromaSim", 400 );
         int smoothness      = TryGetArg<int>( "BlinkChromaSmooth", 80 );
         bool MonitorAudio   = TryGetArg<bool>( "BlinkAudioMonitor", false );
+        string forceType    = TryGetArg<string>( "BlinkForceType", "" );
+        
+        // Font settings
+        var fontSettings = new FontSettings(
+            TryGetArg<string>( "BlinkFontFamily", "Arial" ),
+            TryGetArg<int>( "BlinkFontSize", 48 ),
+            TryGetArg<int>( "BlinkTextColor", 0xFFFFFF ),
+            TryGetArg<string>( "BlinkFontStyle", "" ),
+            TryGetArg<int>( "BlinkBgColor", 0x000000 ),
+            TryGetArg<int>( "BlinkBgOpacity", 0 ),
+            TryGetArg<bool>( "BlinkEnableBg", false )
+        );
 
         if (!File.Exists(vidPath))
         {
@@ -53,7 +95,8 @@ public class CPHInline
         string sceneName = CPH.ObsGetCurrentScene();
         var task = new ObsMediaTask(sceneName, vidPath, taskLength, chroma,
                                     width, height, posX, posY,
-                                    similarity, smoothness, MonitorAudio, this);
+                                    similarity, smoothness, MonitorAudio, forceType,
+                                    fontSettings, this);
         task.Start();
 
         return true;
@@ -75,12 +118,15 @@ public class ObsMediaTask
     private readonly int similarity;
     private readonly int smoothness;
     private readonly bool AudioMonitor;
+    private readonly SourceType sourceType;
+    private readonly FontSettings fontSettings;
 
     private int sceneItemId;
 
     public ObsMediaTask(string sceneName, string vidPath, int taskLength, int chromaKey,
                         int width, int height, int posX, int posY,
-                        int similarity, int smoothness, bool monitorAudio, CPHInline parent)
+                        int similarity, int smoothness, bool monitorAudio, string forceType,
+                        FontSettings fontSettings, CPHInline parent)
     {
         this.sceneName    = sceneName;
         this.vidPath      = vidPath.Replace("\\", "/");
@@ -94,11 +140,16 @@ public class ObsMediaTask
         this.similarity   = similarity;
         this.smoothness   = smoothness;
         this.AudioMonitor = monitorAudio;
+        this.fontSettings = fontSettings;
         this.Parent       = parent;
+
+        // Determine source type based on vidPath with optional override
+        this.sourceType = DetermineSourceType(vidPath, forceType);
+        Parent.CPH.LogInfo($"Determined source type: {sourceType} for path: {vidPath}");
 
         AddSource();
         AddFilter();
-        if( AudioMonitor )
+        if( AudioMonitor && sourceType == SourceType.Media )
             AddMonitor();
         SetTransform();
     }
@@ -114,7 +165,93 @@ public class ObsMediaTask
         });
     }
 
+    private SourceType DetermineSourceType(string path, string forceType)
+    {
+        // Check for force type override first
+        if (!string.IsNullOrWhiteSpace(forceType))
+        {
+            switch (forceType.ToLowerInvariant())
+            {
+                case "media":
+                case "video":
+                    Parent.CPH.LogInfo($"Force override: Using Media source type");
+                    return SourceType.Media;
+                case "image":
+                case "img":
+                    Parent.CPH.LogInfo($"Force override: Using Image source type");
+                    return SourceType.Image;
+                case "textfile":
+                case "text_file":
+                case "file":
+                    Parent.CPH.LogInfo($"Force override: Using TextFile source type");
+                    return SourceType.TextFile;
+                case "text":
+                case "string":
+                    Parent.CPH.LogInfo($"Force override: Using Text source type");
+                    return SourceType.Text;
+                default:
+                    Parent.CPH.LogWarn($"Unknown force type '{forceType}', falling back to auto-detection");
+                    break;
+            }
+        }
+
+        // Auto-detect based on extension
+        string extension = Path.GetExtension(path).ToLowerInvariant();
+        
+        // Video extensions
+        string[] videoExtensions = { ".mp4", ".avi", ".mov", ".mkv", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".mpg", ".mpeg" };
+        
+        // Image extensions  
+        string[] imageExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tga", ".webp" };
+        
+        // Text file extensions
+        string[] textExtensions = { ".txt", ".rtf", ".log", ".md", ".json", ".xml", ".csv" };
+        
+        if (Array.Exists(videoExtensions, ext => ext == extension))
+        {
+            return SourceType.Media;
+        }
+        else if (Array.Exists(imageExtensions, ext => ext == extension))
+        {
+            return SourceType.Image;
+        }
+        else if (Array.Exists(textExtensions, ext => ext == extension))
+        {
+            return SourceType.TextFile;
+        }
+        else
+        {
+            return SourceType.Text;
+        }
+    }
+
     private void AddSource()
+    {
+        switch (sourceType)
+        {
+            case SourceType.Media:
+                Parent.CPH.LogInfo($"Creating media source for: {vidPath}");
+                AddMediaSource();
+                break;
+            case SourceType.Image:
+                Parent.CPH.LogInfo($"Creating image source for: {vidPath}");
+                AddImageSource(vidPath);
+                break;
+            case SourceType.TextFile:
+                Parent.CPH.LogInfo($"Creating text source from file: {vidPath}");
+                AddTextSourceFromFile(vidPath, fontSettings);
+                break;
+            case SourceType.Text:
+                Parent.CPH.LogInfo($"Creating text source with content: {vidPath}");
+                AddTextSource(vidPath, fontSettings);
+                break;
+            default:
+                Parent.CPH.LogError($"Unknown source type: {sourceType}");
+                break;
+        }
+    }
+
+    private void AddMediaSource()
     {
         string createInputJson = $@"{{
             ""sceneName"": ""{sceneName}"",
@@ -136,6 +273,98 @@ public class ObsMediaTask
             Parent.CPH.LogError("Failed to parse sceneItemId from CreateInput response.");
     }
 
+    private void AddImageSource(string imagePath)
+    {
+        string createInputJson = $@"{{
+            ""sceneName"": ""{sceneName}"",
+            ""inputName"": ""{sourceName}"",
+            ""inputKind"": ""image_source"",
+            ""inputSettings"": {{
+                ""file"": ""{imagePath.Replace("\\", "/")}"",
+                ""unload"": false
+            }},
+            ""sceneItemEnabled"": true
+        }}";
+        string resp = Parent.CPH.ObsSendRaw("CreateInput", createInputJson);
+        var obj = JObject.Parse(resp);
+        var idToken = obj["sceneItemId"];
+        if (idToken != null)
+            sceneItemId = (int)idToken;
+        else
+            Parent.CPH.LogError("Failed to parse sceneItemId from CreateInput response.");
+    }
+
+    private void AddTextSourceFromFile(string textFilePath, FontSettings font)
+    {
+        var payload = new JObject {
+            ["sceneName"] = sceneName,
+            ["inputName"] = sourceName,
+            ["inputKind"] = "text_gdiplus_v3",
+            ["inputSettings"] = new JObject{
+                ["read_from_file"] = true,
+                ["file"] = textFilePath.Replace("\\", "/"),
+                ["color"] = font.Color, // text color
+                ["font_color"] = font.Color, // text color
+                ["bk_color"] = font.BgColor, // background color
+                ["bk_opacity"] = font.BgOpacity, // background opacity
+                ["alignment"] = 1, // center text vertically
+                ["font_size"] = font.Size,
+                ["background"] = font.EnableBg,
+                ["wrap"] = true,
+                ["font"] = new JObject {
+                    ["face"] = font.Family,
+                    ["style"] = font.Style,
+                    ["color"] = font.Color,
+                    ["flags"] = 0, // no special flags
+                    ["size"] = font.Size,
+                }
+            },
+            ["sceneItemEnabled"] = true
+        };
+        
+        string resp = Parent.CPH.ObsSendRaw("CreateInput", payload.ToString());
+        var obj = JObject.Parse(resp);
+        var idToken = obj["sceneItemId"];
+        if (idToken != null)
+            sceneItemId = (int)idToken;
+        else
+            Parent.CPH.LogError("Failed to parse sceneItemId from CreateInput response.");
+    }
+    private void AddTextSource(string text, FontSettings font)
+    {
+        var payload = new JObject {
+            ["sceneName"] = sceneName,
+            ["inputName"] = sourceName,
+            ["inputKind"] = "text_gdiplus_v3",
+            ["inputSettings"] = new JObject{
+                ["text"] = text,
+                ["color"] = font.Color, // text color
+                ["font_color"] = font.Color, // text color
+                ["bk_color"] = font.BgColor, // background color
+                ["bk_opacity"] = font.BgOpacity, // background opacity
+                ["alignment"] = 1, // center text vertically
+                ["font_size"] = font.Size,
+                ["background"] = font.EnableBg,
+                ["wrap"] = true,
+                ["font"] = new JObject {
+                    ["face"] = font.Family,
+                    ["style"] = font.Style,
+                    ["color"] = font.Color,
+                    ["flags"] = 0, // no special flags
+                    ["size"] = font.Size,
+                }
+            },
+            ["sceneItemEnabled"] = true
+        };
+        
+        string resp = Parent.CPH.ObsSendRaw("CreateInput", payload.ToString());
+        var obj = JObject.Parse(resp);
+        var idToken = obj["sceneItemId"];
+        if (idToken != null)
+            sceneItemId = (int)idToken;
+        else
+            Parent.CPH.LogError("Failed to parse sceneItemId from CreateInput response.");
+    }
     private void AddFilter()
     {
         Parent.CPH.ObsSendRaw("CreateSourceFilter", $@"{{

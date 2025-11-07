@@ -66,7 +66,7 @@ Create individual actions for each media type you want to use. Repeat this step 
    - Add Sub-Action → "Core" → "Variables" → "Set Argument"
    - Set each parameter (repeat for all needed parameters):
      ```
-     BlinkVidPath: "D:\Alerts\follow-alert.mp4"
+     BlinkContent: "D:\Alerts\follow-alert.mp4"
      BlinkTaskLength: 3
      BlinkWidth: 400
      BlinkHeight: 200
@@ -145,7 +145,8 @@ Configure these arguments in your Streamer.bot action:
 ### Core Parameters
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `BlinkVidPath` | String | `""` | **Required** - File path or text content |
+| `BlinkContent` | String | `""` | **Required** - File path or text content (primary parameter) |
+| `BlinkVidPath` | String | `""` | **Legacy** - Backward compatibility only, use BlinkContent instead |
 | `BlinkTaskLength` | Integer | `10` | Duration in seconds before auto-removal |
 | `BlinkForceType` | String | `""` | **Optional** - Override automatic type detection (rarely needed) |
 | `BlinkWidth` | Integer | `640` | Source width in pixels |
@@ -156,7 +157,7 @@ Configure these arguments in your Streamer.bot action:
 ### Media/Image Parameters
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `BlinkChroma` | Integer/Hex | `0x00FF00` | Chroma key color (supports hex format) |
+| `BlinkChroma` | Integer/Hex | `-1` | Chroma key color (use -1 to disable chroma key entirely) |
 | `BlinkChromaSim` | Integer | `400` | Chroma key similarity threshold |
 | `BlinkChromaSmooth` | Integer | `80` | Chroma key smoothness value |
 | `BlinkAudioMonitor` | Boolean | `false` | Enable audio monitoring (media only) |
@@ -176,9 +177,9 @@ Configure these arguments in your Streamer.bot action:
 
 #### Media File (Auto-detected)
 ```
-BlinkVidPath: "D:\Videos\alert.mp4"
+BlinkContent: "D:\Videos\alert.mp4"
 BlinkTaskLength: 5
-BlinkChroma: 0x00FF00  (or 65280 for green)
+BlinkChroma: 0x00FF00  (or 65280 for green, or -1 to disable)
 BlinkWidth: 1920
 BlinkHeight: 1080
 BlinkPosX: 0
@@ -190,17 +191,29 @@ BlinkAudioMonitor: true
 
 #### Image File (Auto-detected)
 ```
-BlinkVidPath: "D:\Images\notification.png"
+BlinkContent: "D:\Images\notification.png"
 BlinkTaskLength: 3
+BlinkChroma: 0xFF00FF  (magenta chroma key)
 BlinkWidth: 400
 BlinkHeight: 200
 BlinkPosX: 960
 BlinkPosY: 100
 ```
 
+#### Image Without Chroma Key
+```
+BlinkContent: "D:\Images\overlay.png"
+BlinkTaskLength: 5
+BlinkChroma: -1  (disables chroma key completely)
+BlinkWidth: 800
+BlinkHeight: 600
+BlinkPosX: 560
+BlinkPosY: 240
+```
+
 #### Text File (Auto-detected)
 ```
-BlinkVidPath: "D:\Messages\welcome.txt"
+BlinkContent: "D:\Messages\welcome.txt"
 BlinkTaskLength: 8
 BlinkFontFamily: "Segoe UI"
 BlinkFontSize: 72
@@ -210,10 +223,20 @@ BlinkBgColor: 0x000000
 BlinkBgOpacity: 50
 ```
 
-#### Direct Text Content
+#### Direct Text Content (Recommended)
+```
+BlinkContent: "Thanks for following!"
+BlinkTaskLength: 4
+BlinkFontFamily: "Arial Black"
+BlinkFontSize: 64
+BlinkTextColor: 0xFFD700
+BlinkFontStyle: "Bold"
+```
+
+#### Direct Text Content (Legacy BlinkVidPath)
 ```
 BlinkVidPath: "Welcome to the stream!"
-BlinkForceType: "Text"  // Optional: Only needed if text looks like a file path
+BlinkForceType: "Text"  // Required when using BlinkVidPath for text
 BlinkTaskLength: 5
 BlinkFontFamily: "Impact"
 BlinkFontSize: 48
@@ -227,7 +250,7 @@ BlinkFontStyle: "Bold"
 
 #### Basic Video Alert
 ```
-BlinkVidPath: "C:\Alerts\follow-alert.mp4"
+BlinkContent: "C:\Alerts\follow-alert.mp4"
 BlinkTaskLength: 3
 BlinkWidth: 400
 BlinkHeight: 200
@@ -238,12 +261,24 @@ BlinkAudioMonitor: false
 
 #### Green Screen Effect with Audio
 ```
-BlinkVidPath: "D:\Effects\explosion.mp4"
+BlinkContent: "D:\Effects\explosion.mp4"
 BlinkChroma: 0x00FF00
 BlinkChromaSim: 400
 BlinkChromaSmooth: 80
 BlinkTaskLength: 8
 BlinkAudioMonitor: true
+```
+
+#### Video Without Chroma Key
+```
+BlinkContent: "D:\Overlays\transition.mp4"
+BlinkChroma: -1  (no chroma key filtering)
+BlinkTaskLength: 3
+BlinkWidth: 1920
+BlinkHeight: 1080
+BlinkPosX: 0
+BlinkPosY: 0
+BlinkAudioMonitor: false
 ```
 
 #### Audio-Only Alert
@@ -259,7 +294,7 @@ BlinkHeight: 1
 
 #### Donation Alert Badge
 ```
-BlinkVidPath: "D:\Badges\donator.png"
+BlinkContent: "D:\Badges\donator.png"
 BlinkTaskLength: 6
 BlinkWidth: 150
 BlinkHeight: 150
@@ -267,21 +302,22 @@ BlinkPosX: 1750
 BlinkPosY: 50
 ```
 
-#### Full Screen Overlay
+#### Overlay Image Without Background Removal
 ```
-BlinkVidPath: "E:\Overlays\transition.png"
+BlinkContent: "D:\Graphics\frame.png"
+BlinkChroma: -1  (preserves original image transparency)
+BlinkTaskLength: 10
 BlinkWidth: 1920
 BlinkHeight: 1080
 BlinkPosX: 0
 BlinkPosY: 0
-BlinkTaskLength: 2
 ```
 
 ### Text Sources
 
 #### Welcome Message from File
 ```
-BlinkVidPath: "D:\Messages\welcome.txt"
+BlinkContent: "D:\Messages\welcome.txt"
 BlinkTaskLength: 10
 BlinkFontFamily: "Roboto"
 BlinkFontSize: 64
@@ -294,7 +330,7 @@ BlinkBgOpacity: 75
 
 #### Configuration File Display
 ```
-BlinkVidPath: "D:\Config\settings.json"
+BlinkContent: "D:\Config\settings.json"
 BlinkTaskLength: 15
 BlinkFontFamily: "Consolas"
 BlinkFontSize: 24
@@ -304,10 +340,22 @@ BlinkBgColor: 0x2F4F4F
 BlinkBgOpacity: 90
 ```
 
-#### Dynamic Follower Notification
+#### Dynamic Follower Notification (Recommended)
+```
+BlinkContent: "Thanks for the follow, %user%!"
+BlinkTaskLength: 5
+BlinkFontFamily: "Arial Black"
+BlinkFontSize: 56
+BlinkTextColor: 0xFFD700
+BlinkFontStyle: "Bold"
+BlinkPosX: 960
+BlinkPosY: 200
+```
+
+#### Dynamic Follower Notification (Legacy)
 ```
 BlinkVidPath: "Thanks for the follow, %user%!"
-BlinkForceType: "Text"  // Optional: Ensures text content, not file path
+BlinkForceType: "Text"  // Required when using BlinkVidPath for text
 BlinkTaskLength: 5
 BlinkFontFamily: "Arial Black"
 BlinkFontSize: 56
@@ -319,8 +367,7 @@ BlinkPosY: 200
 
 #### Chat Message Display
 ```
-BlinkVidPath: "%message%"
-BlinkForceType: "Text"  // Optional: Prevents misinterpretation as file path
+BlinkContent: "%message%"
 BlinkTaskLength: 8
 BlinkFontFamily: "Consolas"
 BlinkFontSize: 32
@@ -337,10 +384,15 @@ BlinkBgOpacity: 85
 ## How It Works
 
 1. **Parameter Extraction**: Safely extracts and validates all configuration parameters
-2. **FontSettings Creation**: Creates a font configuration object for text sources
-3. **Type Detection**: Intelligently determines source type from file extension or force override
-4. **File Validation**: Checks if specified files exist (for Media, Image, and TextFile sources only)
-5. **Source Creation**: Creates appropriate OBS source (Media/Image/Text) in current scene
+2. **Content Resolution**: Uses `BlinkContent` primarily, falls back to `BlinkVidPath` for backward compatibility
+3. **FontSettings Creation**: Creates a font configuration object for text sources
+4. **Type Detection**: Intelligently determines source type from file extension or force override
+5. **Smart File Handling**: If a file doesn't exist, automatically treats content as direct text
+6. **Source Creation**: Creates appropriate OBS source (Media/Image/Text) in current scene
+7. **Conditional Filtering**: Adds chroma key filtering only if `BlinkChroma >= 0`
+8. **Audio Setup**: Configures audio monitoring for media sources only
+9. **Transform Setup**: Sets position and size properties for all sources
+10. **Async Cleanup**: Starts a timer to automatically remove the source
 6. **Filter Application**: Adds chroma key filtering for media and image sources
 7. **Audio Setup**: Configures audio monitoring for media sources only
 8. **Transform Setup**: Sets position and size properties for all sources
@@ -351,29 +403,37 @@ BlinkBgOpacity: 85
 ```mermaid
 graph TD
     A[Execute Action] --> B[Extract Parameters]
-    B --> C[Create FontSettings Object]
-    C --> D{Force Type Set?}
-    D -->|Yes| E[Use Force Type]
-    D -->|No| F[Detect from Extension]
-    E --> G{Media/Image/TextFile?}
-    F --> G
-    G -->|Yes| H{File Exists?}
-    G -->|No Text| I[Create Source]
-    H -->|No| J[Log Error & Exit]
-    H -->|Yes| I
-    I --> K{Source Type?}
-    K -->|Media| L[Add Media Source + Chroma + Audio Monitor]
-    K -->|Image| M[Add Image Source + Chroma]
-    K -->|TextFile| N[Add Text Source from File]
-    K -->|Text| O[Add Text Source Direct]
-    L --> P[Set Transform]
-    M --> P
-    N --> P
-    O --> P
-    P --> Q[Start Cleanup Timer]
-    Q --> R[Source Active]
-    R --> S[Timer Expires]
-    S --> T[Remove Source]
+    B --> C[Content Resolution: BlinkContent or BlinkVidPath (legacy)]
+    C --> D[Create FontSettings Object]
+    D --> E{Force Type Set?}
+    E -->|Yes| F[Use Force Type]
+    E -->|No| G[Detect from Extension]
+    F --> H{File-based Source?}
+    G --> H
+    H -->|Yes| I{File Exists?}
+    H -->|No Text| J[Create Source]
+    I -->|No| K[Fallback to Text Source]
+    I -->|Yes| J
+    K --> J
+    J --> L{Source Type?}
+    L -->|Media| M[Add Media Source]
+    L -->|Image| N[Add Image Source]
+    L -->|TextFile| O[Add Text Source from File]
+    L -->|Text| P[Add Text Source Direct]
+    M --> Q{Chroma >= 0?}
+    N --> Q
+    O --> R[Set Transform]
+    P --> R
+    Q -->|Yes| S[Add Chroma Filter]
+    Q -->|No| T{Audio Monitor & Media?}
+    S --> T
+    T -->|Yes| U[Add Audio Monitor]
+    T -->|No| R
+    U --> R
+    R --> V[Start Cleanup Timer]
+    V --> W[Source Active]
+    W --> X[Timer Expires]
+    X --> Y[Remove Source]
 ```
 
 ## Code Structure
@@ -418,8 +478,9 @@ graph TD
 
 **File Not Found Error**
 ```
-Solution: Verify the file path exists and is accessible
-Check: File permissions and network drive availability
+Solution: Files now automatically fallback to text content
+Note: Missing files are treated as text, not errors
+Check: Logs will show "File not found" but continue execution
 ```
 
 **Source Not Appearing**
@@ -431,8 +492,16 @@ Check: For Text sources, file validation only applies to file-based sources
 
 **Chroma Key Not Working**
 ```
-Solution: Adjust similarity and smoothness values
-Try: Different chroma key color values
+Solution: Adjust similarity and smoothness values, or disable with -1
+Try: Different chroma key color values (0x00FF00, 0xFF00FF, 0x0000FF)
+Note: Use BlinkChroma: -1 to disable chroma key entirely
+```
+
+**No Transparency Effect**
+```
+Solution: Set BlinkChroma: -1 to disable chroma key
+Alternative: Use proper chroma key colors (0x00FF00 for green screen)
+Note: -1 preserves original image/video transparency
 ```
 
 **Performance Issues**
@@ -455,6 +524,18 @@ The script provides comprehensive logging:
 
 ## Advanced Configuration
 
+### Dual Parameter Support
+```csharp
+// Recommended parameter (modern naming)
+BlinkContent: "D:\Media\alert.mp4"
+
+// Legacy parameter (backward compatibility only)
+BlinkVidPath: "D:\Media\alert.mp4"
+
+// System checks BlinkVidPath first for backward compatibility,
+// then BlinkContent - but use BlinkContent for new implementations
+```
+
 ### Custom Chroma Colors
 ```csharp
 // Green screen (default)
@@ -463,11 +544,14 @@ BlinkChroma: 0x00FF00
 // Blue screen  
 BlinkChroma: 0x0000FF
 
-// Magenta
+// Magenta (excellent for graphics)
 BlinkChroma: 0xFF00FF
 
 // Custom purple
 BlinkChroma: 0x800080
+
+// Disable chroma key entirely
+BlinkChroma: -1
 ```
 
 ### Font Styling Options
@@ -509,24 +593,23 @@ BlinkBgOpacity: 50
 
 ### Force Type Override Examples (Edge Cases Only)
 ```csharp
-// RARE: Force text interpretation of a .txt file path as literal text
+// RARE: Force text interpretation when using legacy BlinkVidPath
 BlinkVidPath: "C:\Data\info.txt"
 BlinkForceType: "Text"  // Treats the path as literal text, not a file to read
 
+// BETTER: Use BlinkContent for direct text (no BlinkForceType needed)
+BlinkContent: "C:\Data\info.txt"  // Automatically treated as text
+
 // RARE: Force media source for unusual/custom extensions
-BlinkVidPath: "D:\Videos\custom.xyz"
+BlinkContent: "D:\Videos\custom.xyz"
 BlinkForceType: "Media"  // System can't detect .xyz, so force media type
 
 // RARE: Force image source for non-standard formats  
-BlinkVidPath: "E:\Images\special.data"
+BlinkContent: "E:\Images\special.data"
 BlinkForceType: "Image"  // System can't detect .data, so force image type
-
-// COMMON: When text content might look like a file path
-BlinkVidPath: "C:\Program Files\My App\config.txt"
-BlinkForceType: "Text"  // Display this text literally, don't try to read the file
 ```
 
-**Note:** Most users never need `BlinkForceType` - the automatic detection handles standard file extensions perfectly.
+**Note:** Use `BlinkContent` instead of `BlinkVidPath` to avoid needing `BlinkForceType` for text content.
 
 ### Multiple Simultaneous Sources
 The GUID-based naming system allows multiple instances to run simultaneously without conflicts. Each source gets a unique 6-character identifier, enabling:
@@ -566,6 +649,7 @@ This code is provided as-is for use with Streamer.bot. Modify and distribute acc
 - **v3.4**: Restricted audio monitoring to media sources only
 - **v3.5**: Added comprehensive font customization parameters
 - **v4.0**: Refactored to clean C# architecture with FontSettings class and enums
+- **v4.1**: Added chroma key disable feature (use -1), dual parameter support (BlinkVidPath/BlinkContent), smart file fallback to text
 
 ---
 

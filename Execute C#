@@ -63,9 +63,13 @@ public class CPHInline
 
     public bool Execute()
     {
-        string vidPath      = TryGetArg<string>( "BlinkVidPath", @"" );
+        //BlinkVidPath is an old parameter name kept for backward compatibility
+        string content      = TryGetArg<string>( "BlinkVidPath", @"" );
+        if( string.IsNullOrWhiteSpace( content ) )
+            content         = TryGetArg<string>( "BlinkContent", @"" );
+
         int taskLength      = TryGetArg<int>( "BlinkTaskLength", 10 ); // seconds
-        int chroma          = TryGetArg<int>( "BlinkChroma", 0x00FF00 );
+        int chroma          = TryGetArg<int>( "BlinkChroma", -1 );
         int width           = TryGetArg<int>( "BlinkWidth", 640 );
         int height          = TryGetArg<int>( "BlinkHeight", 360 );
         int posX            = TryGetArg<int>( "BlinkPosX", 100 );
@@ -86,14 +90,8 @@ public class CPHInline
             TryGetArg<bool>( "BlinkEnableBg", false )
         );
 
-        if (!File.Exists(vidPath))
-        {
-            CPH.LogError($"File not found: {vidPath}");
-            return false;
-        }
-
         string sceneName = CPH.ObsGetCurrentScene();
-        var task = new ObsMediaTask(sceneName, vidPath, taskLength, chroma,
+        var task = new ObsMediaTask(sceneName, content, taskLength, chroma,
                                     width, height, posX, posY,
                                     similarity, smoothness, MonitorAudio, forceType,
                                     fontSettings, this);
@@ -106,7 +104,7 @@ public class CPHInline
 public class ObsMediaTask
 {
     private readonly string sceneName;
-    private readonly string vidPath;
+    private readonly string content;
     private readonly int taskLength;
     private readonly CPHInline Parent;
     private readonly string sourceName;
@@ -123,13 +121,13 @@ public class ObsMediaTask
 
     private int sceneItemId;
 
-    public ObsMediaTask(string sceneName, string vidPath, int taskLength, int chromaKey,
+    public ObsMediaTask(string sceneName, string content, int taskLength, int chromaKey,
                         int width, int height, int posX, int posY,
                         int similarity, int smoothness, bool monitorAudio, string forceType,
                         FontSettings fontSettings, CPHInline parent)
     {
         this.sceneName    = sceneName;
-        this.vidPath      = vidPath.Replace("\\", "/");
+        this.content      = content.Replace("\\", "/");
         this.taskLength   = taskLength;
         this.sourceName   = "Task_" + Guid.NewGuid().ToString("N").Substring(0, 6);
         this.chromaKey    = chromaKey;
@@ -143,12 +141,20 @@ public class ObsMediaTask
         this.fontSettings = fontSettings;
         this.Parent       = parent;
 
-        // Determine source type based on vidPath with optional override
-        this.sourceType = DetermineSourceType(vidPath, forceType);
-        Parent.CPH.LogInfo($"Determined source type: {sourceType} for path: {vidPath}");
+        // Determine source type based on this.content with optional override
+        this.sourceType = DetermineSourceType(this.content, forceType);
+        Parent.CPH.LogInfo($"Determined source type: {sourceType} for path: {this.content}");
+
+        //if provided was a file, but no file found then just force it to be text...
+        if ( ( this.sourceType != SourceType.Text ) && ( !File.Exists( this.content ) ) )
+        {
+            Parent.CPH.LogError($"File not found: {this.content}");
+            this.sourceType = SourceType.Text;
+        }
 
         AddSource();
-        AddFilter();
+        if( chromaKey >= 0 )
+            AddFilter();
         if( AudioMonitor && sourceType == SourceType.Media )
             AddMonitor();
         SetTransform();
@@ -230,20 +236,20 @@ public class ObsMediaTask
         switch (sourceType)
         {
             case SourceType.Media:
-                Parent.CPH.LogInfo($"Creating media source for: {vidPath}");
+                Parent.CPH.LogInfo($"Creating media source for: {this.content}");
                 AddMediaSource();
                 break;
             case SourceType.Image:
-                Parent.CPH.LogInfo($"Creating image source for: {vidPath}");
-                AddImageSource(vidPath);
+                Parent.CPH.LogInfo($"Creating image source for: {this.content}");
+                AddImageSource(this.content);
                 break;
             case SourceType.TextFile:
-                Parent.CPH.LogInfo($"Creating text source from file: {vidPath}");
-                AddTextSourceFromFile(vidPath, fontSettings);
+                Parent.CPH.LogInfo($"Creating text source from file: {this.content}");
+                AddTextSourceFromFile(this.content, fontSettings);
                 break;
             case SourceType.Text:
-                Parent.CPH.LogInfo($"Creating text source with content: {vidPath}");
-                AddTextSource(vidPath, fontSettings);
+                Parent.CPH.LogInfo($"Creating text source with this.content: {this.content}");
+                AddTextSource(this.content, fontSettings);
                 break;
             default:
                 Parent.CPH.LogError($"Unknown source type: {sourceType}");
@@ -258,7 +264,7 @@ public class ObsMediaTask
             ""inputName"": ""{sourceName}"",
             ""inputKind"": ""ffmpeg_source"",
             ""inputSettings"": {{
-                ""local_file"": ""{vidPath}"",
+                ""local_file"": ""{this.content}"",
                 ""is_local_file"": true,
                 ""looping"": true
             }},
@@ -365,6 +371,7 @@ public class ObsMediaTask
         else
             Parent.CPH.LogError("Failed to parse sceneItemId from CreateInput response.");
     }
+
     private void AddFilter()
     {
         Parent.CPH.ObsSendRaw("CreateSourceFilter", $@"{{

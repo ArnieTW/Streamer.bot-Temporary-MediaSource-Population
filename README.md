@@ -116,6 +116,38 @@ Create the actions that will actually be triggered by events:
 - **Flexibility**: Easy to add new media types without duplicating code
 - **Testing**: Can test individual parameter sets without triggers
 
+## Sizing Behavior
+
+The system handles source sizing intelligently:
+
+- **Default (0,0)**: Sources appear at their native dimensions - OBS determines optimal size
+- **Custom Sizing**: Both width AND height must be specified for custom dimensions
+- **Position Only**: Set BlinkPosX/BlinkPosY without width/height for native-sized positioning
+
+### Sizing Examples
+
+#### Native Size (Recommended)
+```
+BlinkContent: "video.mp4"
+// BlinkWidth and BlinkHeight omitted or set to 0
+// Source appears at native resolution
+```
+
+#### Custom Dimensions
+```
+BlinkContent: "video.mp4"
+BlinkWidth: 1920     // Both required for custom sizing
+BlinkHeight: 1080    // Both required for custom sizing
+```
+
+#### Positioned Native Size
+```
+BlinkContent: "overlay.png"
+BlinkPosX: 1600      // Position without resizing
+BlinkPosY: 50
+// Width/Height = 0, so native size is preserved
+```
+
 ## Supported Source Types
 
 The system automatically detects source types based on file extensions:
@@ -149,8 +181,8 @@ Configure these arguments in your Streamer.bot action:
 | `BlinkVidPath` | String | `""` | **Legacy** - Backward compatibility only, use BlinkContent instead |
 | `BlinkTaskLength` | Integer | `10` | Duration in seconds before auto-removal |
 | `BlinkForceType` | String | `""` | **Optional** - Override automatic type detection (rarely needed) |
-| `BlinkWidth` | Integer | `640` | Source width in pixels |
-| `BlinkHeight` | Integer | `360` | Source height in pixels |
+| `BlinkWidth` | Integer | `0` | **Required for custom sizing** - Source width in pixels (0 = native size) |
+| `BlinkHeight` | Integer | `0` | **Required for custom sizing** - Source height in pixels (0 = native size) |
 | `BlinkPosX` | Integer | `100` | X position on screen |
 | `BlinkPosY` | Integer | `100` | Y position on screen |
 
@@ -180,12 +212,22 @@ Configure these arguments in your Streamer.bot action:
 BlinkContent: "D:\Videos\alert.mp4"
 BlinkTaskLength: 5
 BlinkChroma: 0x00FF00  (or 65280 for green, or -1 to disable)
-BlinkWidth: 1920
-BlinkHeight: 1080
+BlinkWidth: 1920       (required for custom sizing)
+BlinkHeight: 1080      (required for custom sizing)
 BlinkPosX: 0
 BlinkPosY: 0
 BlinkChromaSim: 300
 BlinkChromaSmooth: 100
+BlinkAudioMonitor: true
+```
+
+#### Media File (Native Size)
+```
+BlinkContent: "D:\Videos\alert.mp4"
+BlinkTaskLength: 5
+BlinkChroma: 0x00FF00
+BlinkPosX: 960         (positioned but native-sized)
+BlinkPosY: 100
 BlinkAudioMonitor: true
 ```
 
@@ -194,20 +236,18 @@ BlinkAudioMonitor: true
 BlinkContent: "D:\Images\notification.png"
 BlinkTaskLength: 3
 BlinkChroma: 0xFF00FF  (magenta chroma key)
-BlinkWidth: 400
+BlinkWidth: 400        (custom sizing)
 BlinkHeight: 200
 BlinkPosX: 960
 BlinkPosY: 100
 ```
 
-#### Image Without Chroma Key
+#### Image Without Chroma Key (Native Size)
 ```
 BlinkContent: "D:\Images\overlay.png"
 BlinkTaskLength: 5
-BlinkChroma: -1  (disables chroma key completely)
-BlinkWidth: 800
-BlinkHeight: 600
-BlinkPosX: 560
+BlinkChroma: -1        (disables chroma key completely)
+BlinkPosX: 560         (positioned at native size)
 BlinkPosY: 240
 ```
 
@@ -248,11 +288,20 @@ BlinkFontStyle: "Bold"
 
 ### Media Sources
 
-#### Basic Video Alert
+#### Basic Video Alert (Native Size)
 ```
 BlinkContent: "C:\Alerts\follow-alert.mp4"
 BlinkTaskLength: 3
-BlinkWidth: 400
+BlinkPosX: 960         (positioned but keeps native dimensions)
+BlinkPosY: 100
+BlinkAudioMonitor: false
+```
+
+#### Basic Video Alert (Custom Size)
+```
+BlinkContent: "C:\Alerts\follow-alert.mp4"
+BlinkTaskLength: 3
+BlinkWidth: 400        (custom dimensions)
 BlinkHeight: 200
 BlinkPosX: 960
 BlinkPosY: 100
@@ -269,12 +318,12 @@ BlinkTaskLength: 8
 BlinkAudioMonitor: true
 ```
 
-#### Video Without Chroma Key
+#### Video Without Chroma Key (Fullscreen)
 ```
 BlinkContent: "D:\Overlays\transition.mp4"
-BlinkChroma: -1  (no chroma key filtering)
+BlinkChroma: -1        (no chroma key filtering)
 BlinkTaskLength: 3
-BlinkWidth: 1920
+BlinkWidth: 1920       (fullscreen dimensions)
 BlinkHeight: 1080
 BlinkPosX: 0
 BlinkPosY: 0
@@ -292,22 +341,30 @@ BlinkHeight: 1
 
 ### Image Sources
 
-#### Donation Alert Badge
+#### Donation Alert Badge (Native Size)
 ```
 BlinkContent: "D:\Badges\donator.png"
 BlinkTaskLength: 6
-BlinkWidth: 150
+BlinkPosX: 1750        (positioned at native size)
+BlinkPosY: 50
+```
+
+#### Donation Alert Badge (Custom Size)
+```
+BlinkContent: "D:\Badges\donator.png"
+BlinkTaskLength: 6
+BlinkWidth: 150        (custom badge size)
 BlinkHeight: 150
 BlinkPosX: 1750
 BlinkPosY: 50
 ```
 
-#### Overlay Image Without Background Removal
+#### Overlay Image Without Background Removal (Fullscreen)
 ```
 BlinkContent: "D:\Graphics\frame.png"
-BlinkChroma: -1  (preserves original image transparency)
+BlinkChroma: -1        (preserves original image transparency)
 BlinkTaskLength: 10
-BlinkWidth: 1920
+BlinkWidth: 1920       (fullscreen overlay)
 BlinkHeight: 1080
 BlinkPosX: 0
 BlinkPosY: 0
@@ -365,16 +422,30 @@ BlinkPosX: 960
 BlinkPosY: 200
 ```
 
-#### Chat Message Display
+#### Chat Message Display (Custom Size)
 ```
 BlinkContent: "%message%"
 BlinkTaskLength: 8
 BlinkFontFamily: "Consolas"
 BlinkFontSize: 32
 BlinkTextColor: 0xFFFFFF
-BlinkWidth: 800
+BlinkWidth: 800        (custom text area size)
 BlinkHeight: 400
 BlinkPosX: 100
+BlinkPosY: 500
+BlinkEnableBg: true
+BlinkBgColor: 0x1E1E1E
+BlinkBgOpacity: 85
+```
+
+#### Chat Message Display (Native Size)
+```
+BlinkContent: "%message%"
+BlinkTaskLength: 8
+BlinkFontFamily: "Consolas"
+BlinkFontSize: 32
+BlinkTextColor: 0xFFFFFF
+BlinkPosX: 100         (positioned but native text size)
 BlinkPosY: 500
 BlinkEnableBg: true
 BlinkBgColor: 0x1E1E1E
@@ -384,14 +455,14 @@ BlinkBgOpacity: 85
 ## How It Works
 
 1. **Parameter Extraction**: Safely extracts and validates all configuration parameters
-2. **Content Resolution**: Uses `BlinkContent` primarily, falls back to `BlinkVidPath` for backward compatibility
+2. **Content Resolution**: Checks `BlinkVidPath` first for backward compatibility, then `BlinkContent`
 3. **FontSettings Creation**: Creates a font configuration object for text sources
 4. **Type Detection**: Intelligently determines source type from file extension or force override
 5. **Smart File Handling**: If a file doesn't exist, automatically treats content as direct text
 6. **Source Creation**: Creates appropriate OBS source (Media/Image/Text) in current scene
 7. **Conditional Filtering**: Adds chroma key filtering only if `BlinkChroma >= 0`
 8. **Audio Setup**: Configures audio monitoring for media sources only
-9. **Transform Setup**: Sets position and size properties for all sources
+9. **Smart Transform**: Applies custom scaling only when both width AND height are specified (non-zero)
 10. **Async Cleanup**: Starts a timer to automatically remove the source
 6. **Filter Application**: Adds chroma key filtering for media and image sources
 7. **Audio Setup**: Configures audio monitoring for media sources only
@@ -403,7 +474,7 @@ BlinkBgOpacity: 85
 ```mermaid
 graph TD
     A[Execute Action] --> B[Extract Parameters]
-    B --> C[Content Resolution: BlinkContent or BlinkVidPath (legacy)]
+    B --> C[Content Resolution: BlinkVidPath (legacy check) or BlinkContent]
     C --> D[Create FontSettings Object]
     D --> E{Force Type Set?}
     E -->|Yes| F[Use Force Type]
@@ -428,12 +499,15 @@ graph TD
     Q -->|No| T{Audio Monitor & Media?}
     S --> T
     T -->|Yes| U[Add Audio Monitor]
-    T -->|No| R
-    U --> R
-    R --> V[Start Cleanup Timer]
-    V --> W[Source Active]
-    W --> X[Timer Expires]
-    X --> Y[Remove Source]
+    T -->|No| V{Width & Height > 0?}
+    U --> V
+    V -->|Yes| W[Apply Custom Scaling + Position]
+    V -->|No| X[Position Only - Native Size]
+    W --> Y[Start Cleanup Timer]
+    X --> Y
+    Y --> Z[Source Active]
+    Z --> AA[Timer Expires]
+    AA --> BB[Remove Source]
 ```
 
 ## Code Structure

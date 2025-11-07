@@ -70,8 +70,8 @@ public class CPHInline
 
         int taskLength      = TryGetArg<int>( "BlinkTaskLength", 10 ); // seconds
         int chroma          = TryGetArg<int>( "BlinkChroma", -1 );
-        int width           = TryGetArg<int>( "BlinkWidth", 640 );
-        int height          = TryGetArg<int>( "BlinkHeight", 360 );
+        int width           = TryGetArg<int>( "BlinkWidth", 0 );
+        int height          = TryGetArg<int>( "BlinkHeight", 0 );
         int posX            = TryGetArg<int>( "BlinkPosX", 100 );
         int posY            = TryGetArg<int>( "BlinkPosY", 100 );
         int similarity      = TryGetArg<int>( "BlinkChromaSim", 400 );
@@ -397,28 +397,48 @@ public class ObsMediaTask
     {
         if (sceneItemId == 0) return;
 
-        var (nativeW, nativeH) = GetValidBox(sceneName, sceneItemId);
-        if (nativeW == 0 || nativeH == 0)
+        string transformJson;
+        
+        if (width != 0 && height != 0)
         {
-            nativeW = 1;
-            nativeH = 1;
-            Parent.CPH.LogError("Could not get native size.");
+            // Apply custom sizing
+            var (nativeW, nativeH) = GetValidBox(sceneName, sceneItemId);
+            if (nativeW == 0 || nativeH == 0)
+            {
+                nativeW = 1;
+                nativeH = 1;
+                Parent.CPH.LogError("Could not get native size.");
+            }
+
+            double scaleX = (double)width / nativeW;
+            double scaleY = (double)height / nativeH;
+            
+            transformJson = $@"{{
+                ""sceneName"": ""{sceneName}"",
+                ""sceneItemId"": {sceneItemId},
+                ""sceneItemTransform"": {{
+                    ""positionX"": {posX},
+                    ""positionY"": {posY},
+                    ""alignment"": 1,
+                    ""scaleX"": {scaleX.ToString(System.Globalization.CultureInfo.InvariantCulture)},
+                    ""scaleY"": {scaleY.ToString(System.Globalization.CultureInfo.InvariantCulture)}
+                }}
+            }}";
         }
-
-        double scaleX = (double)width / nativeW;
-        double scaleY = (double)height / nativeH;
-
-        string transformJson = $@"{{
-            ""sceneName"": ""{sceneName}"",
-            ""sceneItemId"": {sceneItemId},
-            ""sceneItemTransform"": {{
-                ""positionX"": {posX},
-                ""positionY"": {posY},
-                ""alignment"": 1,
-                ""scaleX"": {scaleX.ToString(System.Globalization.CultureInfo.InvariantCulture)},
-                ""scaleY"": {scaleY.ToString(System.Globalization.CultureInfo.InvariantCulture)}
-            }}
-        }}";
+        else
+        {
+            // No scaling - let OBS handle native size
+            transformJson = $@"{{
+                ""sceneName"": ""{sceneName}"",
+                ""sceneItemId"": {sceneItemId},
+                ""sceneItemTransform"": {{
+                    ""positionX"": {posX},
+                    ""positionY"": {posY},
+                    ""alignment"": 1
+                }}
+            }}";
+        }
+        
         Parent.CPH.ObsSendRaw("SetSceneItemTransform", transformJson);
     }
 

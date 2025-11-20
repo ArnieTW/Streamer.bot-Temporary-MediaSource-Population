@@ -38,7 +38,7 @@ public class CPHInline
 {
     private T TryGetArg<T>(string argName, T defaultValue)
     {
-        if (CPH.TryGetArg(argName, out object raw))
+        if (CPH.TryGetArg(argName, out object raw) && raw != null)
         {
             try
             {
@@ -57,6 +57,7 @@ public class CPHInline
             {
                 return defaultValue;
             }
+            CPH.SetArgument( argName, "" );
         }
         return defaultValue;
     }
@@ -68,7 +69,7 @@ public class CPHInline
         if( string.IsNullOrWhiteSpace( content ) )
             content         = TryGetArg<string>( "BlinkContent", @"" );
 
-        int taskLength      = TryGetArg<int>( "BlinkTaskLength", 10 ); // seconds
+        float taskLength      = TryGetArg<float>( "BlinkTaskLength", 10 ); // seconds
         int chroma          = TryGetArg<int>( "BlinkChroma", -1 );
         int width           = TryGetArg<int>( "BlinkWidth", 0 );
         int height          = TryGetArg<int>( "BlinkHeight", 0 );
@@ -111,7 +112,7 @@ public class ObsMediaTask
 {
     private readonly string sceneName;
     private readonly string content;
-    private readonly int taskLength;
+    private readonly float taskLength;
     private readonly CPHInline Parent;
     private readonly string sourceName;
     private readonly int chromaKey;
@@ -129,7 +130,7 @@ public class ObsMediaTask
 
     private int sceneItemId;
 
-    public ObsMediaTask(string sceneName, string content, int taskLength, int chromaKey,
+    public ObsMediaTask(string sceneName, string content, float taskLength, int chromaKey,
                         int width, int height, int posX, int posY,
                         int similarity, int smoothness, bool monitorAudio, string forceType,
                         double volumeMul, string tracksSpec,
@@ -164,6 +165,7 @@ public class ObsMediaTask
         }
 
         AddSource();
+        SetTransform();
         // Media-only audio configuration
         if (sourceType == SourceType.Media)
         {
@@ -173,11 +175,66 @@ public class ObsMediaTask
                 SetVolume();
             if( AudioMonitor )
                 AddMonitor();
-
         }
         if( chromaKey >= 0 )
             AddFilter();
-        SetTransform();
+    }
+
+    private void SetVolume()
+    {
+        // SetInputVolume: expects inputVolumeMul (0.0 - 20.0)
+        string json = $@"{{
+            ""inputName"": ""{sourceName}"",
+            ""inputVolumeMul"": {volumeMul.ToString(System.Globalization.CultureInfo.InvariantCulture)}
+        }}";
+        Parent.CPH.ObsSendRaw("SetInputVolume", json);
+    }
+
+    private void SetAudioTracks()
+    {
+        // Parse tracksSpec into boolean map for tracks 1-6
+        bool t1=false, t2=false, t3=false, t4=false, t5=false, t6=false;
+        var spec = tracksSpec.Trim().ToLowerInvariant();
+        if (spec == "all")
+        {
+            t1=t2=t3=t4=t5=t6=true;
+        }
+        else if (spec == "none")
+        {
+            // all false already
+        }
+        else
+        {
+            var parts = spec.Split(new[]{',',';',' '}, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var p in parts)
+            {
+                if (int.TryParse(p, out int n))
+                {
+                    switch (n)
+                    {
+                        case 1: t1=true; break;
+                        case 2: t2=true; break;
+                        case 3: t3=true; break;
+                        case 4: t4=true; break;
+                        case 5: t5=true; break;
+                        case 6: t6=true; break;
+                    }
+                }
+            }
+        }
+
+        string tracksJson = $@"{{
+            ""inputName"": ""{sourceName}"",
+            ""inputAudioTracks"": {{
+                ""1"": {(t1 ? "true" : "false")},
+                ""2"": {(t2 ? "true" : "false")},
+                ""3"": {(t3 ? "true" : "false")},
+                ""4"": {(t4 ? "true" : "false")},
+                ""5"": {(t5 ? "true" : "false")},
+                ""6"": {(t6 ? "true" : "false")}
+            }}
+        }}";
+        Parent.CPH.ObsSendRaw("SetInputAudioTracks", tracksJson);
     }
 
     public void Start()
@@ -185,7 +242,7 @@ public class ObsMediaTask
         Task.Run(async () =>
         {
             Parent.CPH.LogInfo($"Task started for {taskLength}s on source {sourceName}");
-            await Task.Delay(taskLength * 1000);
+            await Task.Delay( TimeSpan.FromSeconds( taskLength ) );
             RemoveSource();
             Parent.CPH.LogInfo($"Task finished, source {sourceName} removed.");
         });
@@ -224,13 +281,8 @@ public class ObsMediaTask
         // Auto-detect based on extension
         string extension = Path.GetExtension(path).ToLowerInvariant();
         
-        // Media (video + audio) extensions
-        string[] mediaExtensions = {
-            // Video
-            ".mp4", ".avi", ".mov", ".mkv", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".mpg", ".mpeg",
-            // Audio
-            ".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac", ".opus"
-        };
+        // Video extensions
+        string[] videoExtensions = { ".mp4", ".avi", ".mov", ".mkv", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".mpg", ".mpeg", ".mp3" };
         
         // Image extensions  
         string[] imageExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tga", ".webp" };
@@ -238,7 +290,7 @@ public class ObsMediaTask
         // Text file extensions
         string[] textExtensions = { ".txt", ".rtf", ".log", ".md", ".json", ".xml", ".csv" };
         
-        if (Array.Exists(mediaExtensions, ext => ext == extension))
+        if (Array.Exists(videoExtensions, ext => ext == extension))
         {
             return SourceType.Media;
         }
@@ -506,63 +558,6 @@ public class ObsMediaTask
             ""inputName"": ""{sourceName}"",
             ""monitorType"": ""OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT""
         }}");
-    }
-
-    private void SetVolume()
-    {
-        // SetInputVolume: expects inputVolumeMul (0.0 - 20.0)
-        string json = $@"{{
-            ""inputName"": ""{sourceName}"",
-            ""inputVolumeMul"": {volumeMul.ToString(System.Globalization.CultureInfo.InvariantCulture)}
-        }}";
-        Parent.CPH.ObsSendRaw("SetInputVolume", json);
-    }
-
-    private void SetAudioTracks()
-    {
-        // Parse tracksSpec into boolean map for tracks 1-6
-        bool t1=false, t2=false, t3=false, t4=false, t5=false, t6=false;
-        var spec = tracksSpec.Trim().ToLowerInvariant();
-        if (spec == "all")
-        {
-            t1=t2=t3=t4=t5=t6=true;
-        }
-        else if (spec == "none")
-        {
-            // all false already
-        }
-        else
-        {
-            var parts = spec.Split(new[]{',',';',' '}, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var p in parts)
-            {
-                if (int.TryParse(p, out int n))
-                {
-                    switch (n)
-                    {
-                        case 1: t1=true; break;
-                        case 2: t2=true; break;
-                        case 3: t3=true; break;
-                        case 4: t4=true; break;
-                        case 5: t5=true; break;
-                        case 6: t6=true; break;
-                    }
-                }
-            }
-        }
-
-        string tracksJson = $@"{{
-            ""inputName"": ""{sourceName}"",
-            ""inputAudioTracks"": {{
-                ""1"": {(t1 ? "true" : "false")},
-                ""2"": {(t2 ? "true" : "false")},
-                ""3"": {(t3 ? "true" : "false")},
-                ""4"": {(t4 ? "true" : "false")},
-                ""5"": {(t5 ? "true" : "false")},
-                ""6"": {(t6 ? "true" : "false")}
-            }}
-        }}";
-        Parent.CPH.ObsSendRaw("SetInputAudioTracks", tracksJson);
     }
 
     private void RemoveSource()

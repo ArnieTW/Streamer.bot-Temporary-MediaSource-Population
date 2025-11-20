@@ -154,7 +154,7 @@ The system automatically detects source types based on file extensions:
 
 | Source Type | Extensions | Description |
 |-------------|------------|-------------|
-| **Media** | `.mp4`, `.avi`, `.mov`, `.mkv`, `.wmv`, `.flv`, `.webm`, `.m4v`, `.3gp`, `.mpg`, `.mpeg`, `.mp3`, `.wav`, `.ogg`, `.m4a`, `.aac`, `.flac`, `.opus` | Video & audio files using ffmpeg_source |
+| **Media** | `.mp4`, `.avi`, `.mov`, `.mkv`, `.wmv`, `.flv`, `.webm`, `.m4v`, `.3gp`, `.mpg`, `.mpeg`, `.mp3` | Video files plus basic audio (`.mp3`) using ffmpeg_source |
 | **Image** | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tga`, `.webp` | Static images using image_source |
 | **Text File** | `.txt`, `.rtf`, `.log`, `.md`, `.json`, `.xml`, `.csv` | Text content loaded from file using text_gdiplus_v3 |
 | **Text** | N/A | Direct text content using text_gdiplus_v3 |
@@ -168,7 +168,7 @@ The system automatically detects source types based on file extensions:
 - `TextFile` - Force text from file (text_gdiplus_v3) when path should be read as file
 - `Text` - Force direct text content (text_gdiplus_v3) when content looks like a file path
 
-**When to use:** Unusual file extensions, treating file paths as literal text, or custom formats.
+**When to use:** Unusual file extensions, treating file paths as literal text, or custom formats. All documented aliases are supported.
 
 ## Parameters
 
@@ -179,8 +179,8 @@ Configure these arguments in your Streamer.bot action:
 |-----------|------|---------|-------------|
 | `BlinkContent` | String | `""` | **Required** - File path or text content (primary parameter) |
 | `BlinkVidPath` | String | `""` | **Legacy** - Backward compatibility only, use BlinkContent instead |
-| `BlinkTaskLength` | Integer | `10` | Duration in seconds before auto-removal |
-| `BlinkForceType` | String | `""` | **Optional** - Override automatic type detection (rarely needed) |
+| `BlinkTaskLength` | Number | `10` | Duration in seconds before auto-removal (fractional values allowed) |
+| `BlinkForceType` | String | `""` | **Optional** - Override automatic type detection (rarely needed). Aliases: `Media`, `Video`, `Image`, `Img`, `TextFile`, `File`, `Text`, `String` |
 | `BlinkWidth` | Integer | `0` | **Required for custom sizing** - Source width in pixels (0 = native size) |
 | `BlinkHeight` | Integer | `0` | **Required for custom sizing** - Source height in pixels (0 = native size) |
 | `BlinkPosX` | Integer | `100` | X position on screen |
@@ -194,7 +194,7 @@ Configure these arguments in your Streamer.bot action:
 | `BlinkChromaSmooth` | Integer | `80` | Chroma key smoothness value |
 | `BlinkAudioMonitor` | Boolean | `false` | Enable audio monitoring (media only) |
 | `BlinkVolume` | Integer (0-100) | `-1` | Set media source volume percent (media only; -1 = unchanged) |
-| `BlinkTracks` | String | `""` | Enable recording tracks: CSV like `"1,2,5"`, or `"all"`/`"none"` (media only) |
+| `BlinkTracks` | String | `""` | Enable recording tracks: list like `"1,2,5"` (commas, spaces, semicolons allowed) or `"all"` / `"none"` (media only) |
 
 ### Text Parameters
 | Parameter | Type | Default | Description |
@@ -338,7 +338,7 @@ BlinkVolume: 50
 BlinkTracks: "none"
 ```
 
-#### Audio-Only Alert
+#### Audio-Only Alert (MP3 Only)
 ```
 BlinkContent: "D:\Sounds\notification.mp3"
 BlinkTaskLength: 4
@@ -474,10 +474,6 @@ BlinkBgOpacity: 85
 8. **Audio Setup**: Configures audio monitoring for media sources only
 9. **Smart Transform**: Applies custom scaling only when both width AND height are specified (non-zero)
 10. **Async Cleanup**: Starts a timer to automatically remove the source
-6. **Filter Application**: Adds chroma key filtering for media and image sources
-7. **Audio Setup**: Configures audio monitoring for media sources only
-8. **Transform Setup**: Sets position and size properties for all sources
-9. **Async Cleanup**: Starts a timer to automatically remove the source
 
 ### Technical Flow
 
@@ -733,9 +729,9 @@ This code is provided as-is for use with Streamer.bot. Modify and distribute acc
 - **v3.4**: Restricted audio monitoring to media sources only
 - **v3.5**: Added comprehensive font customization parameters
 - **v4.0**: Refactored to clean C# architecture with FontSettings class and enums
-- **v4.1**: Added chroma key disable feature (use -1), dual parameter support (BlinkVidPath/BlinkContent), smart file fallback to text
- - **v4.1**: Added chroma key disable feature (use -1), dual parameter support (BlinkVidPath/BlinkContent), smart file fallback to text, initial sizing logic clarification
- - **v4.2**: Media audio enhancements: volume control (BlinkVolume), recording track mapping (BlinkTracks), expanded media detection to include common audio-only formats (.mp3, .wav, .ogg, .m4a, .aac, .flac, .opus)
+- **v4.1**: Added chroma key disable feature (use -1), dual parameter support (BlinkVidPath/BlinkContent), smart file fallback to text, initial sizing logic clarification
+- **v4.2**: Media audio enhancements: volume control (BlinkVolume), recording track mapping (BlinkTracks)
+- **v4.3**: Detection list simplified to current implementation (video formats + `.mp3` only)
 
 ---
 

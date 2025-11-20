@@ -154,7 +154,7 @@ The system automatically detects source types based on file extensions:
 
 | Source Type | Extensions | Description |
 |-------------|------------|-------------|
-| **Media** | `.mp4`, `.avi`, `.mov`, `.mkv`, `.wmv`, `.flv`, `.webm`, `.m4v`, `.3gp`, `.mpg`, `.mpeg` | Video and audio files using ffmpeg_source |
+| **Media** | `.mp4`, `.avi`, `.mov`, `.mkv`, `.wmv`, `.flv`, `.webm`, `.m4v`, `.3gp`, `.mpg`, `.mpeg`, `.mp3`, `.wav`, `.ogg`, `.m4a`, `.aac`, `.flac`, `.opus` | Video & audio files using ffmpeg_source |
 | **Image** | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tga`, `.webp` | Static images using image_source |
 | **Text File** | `.txt`, `.rtf`, `.log`, `.md`, `.json`, `.xml`, `.csv` | Text content loaded from file using text_gdiplus_v3 |
 | **Text** | N/A | Direct text content using text_gdiplus_v3 |
@@ -193,6 +193,8 @@ Configure these arguments in your Streamer.bot action:
 | `BlinkChromaSim` | Integer | `400` | Chroma key similarity threshold |
 | `BlinkChromaSmooth` | Integer | `80` | Chroma key smoothness value |
 | `BlinkAudioMonitor` | Boolean | `false` | Enable audio monitoring (media only) |
+| `BlinkVolume` | Integer (0-100) | `-1` | Set media source volume percent (media only; -1 = unchanged) |
+| `BlinkTracks` | String | `""` | Enable recording tracks: CSV like `"1,2,5"`, or `"all"`/`"none"` (media only) |
 
 ### Text Parameters
 | Parameter | Type | Default | Description |
@@ -219,6 +221,8 @@ BlinkPosY: 0
 BlinkChromaSim: 300
 BlinkChromaSmooth: 100
 BlinkAudioMonitor: true
+BlinkVolume: 70        (70% volume)
+BlinkTracks: "1,2"     (enable tracks 1 and 2)
 ```
 
 #### Media File (Native Size)
@@ -316,6 +320,8 @@ BlinkChromaSim: 400
 BlinkChromaSmooth: 80
 BlinkTaskLength: 8
 BlinkAudioMonitor: true
+BlinkVolume: 100
+BlinkTracks: "all"
 ```
 
 #### Video Without Chroma Key (Fullscreen)
@@ -328,14 +334,18 @@ BlinkHeight: 1080
 BlinkPosX: 0
 BlinkPosY: 0
 BlinkAudioMonitor: false
+BlinkVolume: 50
+BlinkTracks: "none"
 ```
 
 #### Audio-Only Alert
 ```
-BlinkVidPath: "D:\Sounds\notification.mp3"
+BlinkContent: "D:\Sounds\notification.mp3"
 BlinkTaskLength: 4
 BlinkAudioMonitor: true
-BlinkWidth: 1
+BlinkVolume: 80          (set playback volume)
+BlinkTracks: "1"         (enable recording track 1 only)
+BlinkWidth: 1            (no scaling needed for audio)
 BlinkHeight: 1
 ```
 
@@ -724,6 +734,8 @@ This code is provided as-is for use with Streamer.bot. Modify and distribute acc
 - **v3.5**: Added comprehensive font customization parameters
 - **v4.0**: Refactored to clean C# architecture with FontSettings class and enums
 - **v4.1**: Added chroma key disable feature (use -1), dual parameter support (BlinkVidPath/BlinkContent), smart file fallback to text
+ - **v4.1**: Added chroma key disable feature (use -1), dual parameter support (BlinkVidPath/BlinkContent), smart file fallback to text, initial sizing logic clarification
+ - **v4.2**: Media audio enhancements: volume control (BlinkVolume), recording track mapping (BlinkTracks), expanded media detection to include common audio-only formats (.mp3, .wav, .ogg, .m4a, .aac, .flac, .opus)
 
 ---
 

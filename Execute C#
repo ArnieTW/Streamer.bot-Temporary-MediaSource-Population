@@ -40,6 +40,8 @@ public class CPHInline
     {
         if (CPH.TryGetArg(argName, out object raw) && raw != null)
         {
+            // we got the arg, now remove it to prevent it bleeding out to other inlines
+            CPH.SetArgument( argName, "" );
             try
             {
                 if (typeof(T) == typeof(int) && raw is string s)
@@ -50,6 +52,11 @@ public class CPHInline
                         int hex = int.Parse(s.Substring(2), System.Globalization.NumberStyles.HexNumber);
                         return (T)(object)hex;
                     }
+                    else if ( s.StartsWith( "#" ) )
+                    {
+                        int hex = int.Parse( s.Substring( 1 ), System.Globalization.NumberStyles.HexNumber );
+                        return (T)(object)hex;
+                    }
                 }
                 return (T)Convert.ChangeType(raw, typeof(T));
             }
@@ -57,7 +64,6 @@ public class CPHInline
             {
                 return defaultValue;
             }
-            CPH.SetArgument( argName, "" );
         }
         return defaultValue;
     }

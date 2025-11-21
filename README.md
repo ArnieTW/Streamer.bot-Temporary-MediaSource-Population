@@ -15,6 +15,7 @@ A comprehensive Streamer.bot C# action that creates temporary sources in OBS Stu
 - 🎯 **Conflict Prevention**: Uses GUID-based naming to avoid source name conflicts
 - 📝 **Comprehensive Logging**: Built-in logging for debugging and monitoring
 - 🏗️ **Clean Architecture**: Well-structured code using FontSettings class and enum-based dispatching
+- 🎨 **Flexible Color Formats**: Accepts decimal, `0xRRGGBB`, and `#RRGGBB` for color-related arguments
 
 ## Requirements
 
@@ -206,6 +207,13 @@ Configure these arguments in your Streamer.bot action:
 | `BlinkBgColor` | Integer/Hex | `0x000000` | Background color (black) |
 | `BlinkBgOpacity` | Integer | `0` | Background opacity (0-100) |
 | `BlinkEnableBg` | Boolean | `false` | Enable background rendering |
+
+### Color Format Support
+All color parameters (`BlinkChroma`, `BlinkTextColor`, `BlinkBgColor`) support multiple input styles:
+- Decimal integer (e.g. `16777215`)
+- Hex with `0x` prefix (e.g. `0xFFFFFF`)
+- Hex with leading hash (e.g. `#FFFFFF`)
+Use `-1` for `BlinkChroma` to disable chroma key entirely.
 
 ### Parameter Examples
 
@@ -732,6 +740,7 @@ This code is provided as-is for use with Streamer.bot. Modify and distribute acc
 - **v4.1**: Added chroma key disable feature (use -1), dual parameter support (BlinkVidPath/BlinkContent), smart file fallback to text, initial sizing logic clarification
 - **v4.2**: Media audio enhancements: volume control (BlinkVolume), recording track mapping (BlinkTracks)
 - **v4.3**: Detection list simplified to current implementation (video formats + `.mp3` only)
+- **v4.4**: Added automatic media looping, support for `#RRGGBB` color parsing, clarified multi-format color input; internal improvement clearing arguments post-use.
 
 ---
 
